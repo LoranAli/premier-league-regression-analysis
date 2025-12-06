@@ -1,0 +1,224 @@
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(car)
+library(ggcorrplot)
+library(MASS)
+
+
+
+# 1. LÄS IN & FÖRBERED DATA
+
+
+# Läs in Premier League-data och wages
+pl    <- read_excel("Pldatta.xlsx")
+
+
+# Lista över variabler som ska vara numeriska
+num_vars <- c(
+  "Poang", "Sot", "xG", "SCA", "FinalThird", "PrgP",
+  "Cmp", "TklW", "Err", "TotDist", "Age", "PI", "Wages"
+)
+
+# Gör om till numeric 
+pl <- pl %>%
+  mutate(
+    across(
+      all_of(num_vars),
+      ~ as.numeric(gsub(",", ".", as.character(.)))
+    )
+  )
+
+
+# Skapa regressionsdata: alla år, inga NA i nyckelvariabler
+pl_reg <- pl %>%
+  dplyr::select(Squad, Year, all_of(num_vars)) %>%
+  drop_na()
+
+# Snabb koll
+str(pl_reg)
+nrow(pl_reg)
+
+
+
+# 2. FULL MODELL (ALLA VARIABLER) + VIF
+
+
+model_full <- lm(
+  Poang ~ Sot + xG + SCA + FinalThird + PrgP +
+    Cmp + TklW + Err + TotDist + Age + PI + Wages,
+  data = pl_reg
+)
+
+summary(model_full)      
+vif_full <- vif(model_full)
+vif_full                   # underlag till VIF-tabell
+
+
+
+# 3. SLUTLIG REDUCERAD MODELL (VALD MODELL)
+
+# Slutmodell baserad på signifikans + VIF + teori
+model_final <- lm(
+  Poang ~ Sot + xG + Cmp + TklW + Err + TotDist + PI + Wages,
+  data = pl_reg
+)
+
+summary(model_final)      # detta är modellen vi använder i rapporten
+vif(model_final)          # VIF för slutmodellen
+
+
+
+
+
+
+# 4. PREDICTIONER & RESIDUALER FRÅN SLUTMODELLEN
+
+
+pl_reg <- pl_reg %>%
+  mutate(
+    pred  = predict(model_final),
+    resid = residuals(model_final)
+  )
+
+predict(model_final)
+residuals(model_final)
+
+View(pl_reg)
+
+cbind(index = 1:nrow(pl_reg), pl_reg[, c("Squad", "Year", "Poang", "pred", "resid")])
+
+
+
+# 5. VISUALISERINGAR
+
+
+# 5.1 Predikterade vs faktiska poäng
+
+ggplot(pl_reg, aes(x = pred, y = Poang)) +
+  geom_point() +
+  geom_abline(linetype = "dashed") +
+  labs(
+    title = "Predikterade vs faktiska poäng",
+    x = "Predikterade poäng",
+    y = "Faktiska poäng"
+  )
+
+# 5.2 Residualplot (fitted vs residualer)
+
+ggplot(pl_reg, aes(x = pred, y = resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Residualplot",
+    x = "Fitted värden (predikterade poäng)",
+    y = "Residualer"
+  )
+
+# 5.3 QQ-plot för residualer
+
+ggplot(pl_reg, aes(sample = resid)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(
+    title = "QQ-plot för residualer",
+    x = "Teoretiska kvantiler",
+    y = "Observerade kvantiler"
+  )
+
+# 5.4 Korrelationsmatris (heatmap)
+
+corr_matrix <- cor(pl_reg[, num_vars], use = "complete.obs")
+
+ggcorrplot(
+  corr_matrix,
+  hc.order   = TRUE,
+  type       = "lower",
+  lab        = TRUE,
+  lab_size   = 3,
+  colors     = c("#2c7bb6", "white", "#d7191c"),
+  title      = "Korrelationsmatris för modellvariabler",
+  ggtheme    = theme_minimal()
+)
+
+# 5.5 Variabelbetydelse (absoluta t-värden i slutmodellen)
+
+coefs <- summary(model_final)$coefficients[-1, , drop = FALSE]  # ta bort interceptet
+
+df_t <- data.frame(
+  Variabel = rownames(coefs),
+  t_value  = abs(coefs[, "t value"])
+)
+
+ggplot(df_t, aes(x = t_value, y = reorder(Variabel, t_value))) +
+  geom_point() +
+  labs(
+    title = "Variablernas betydelse (absoluta t-värden)",
+    x = "t-värde",
+    y = "Variabel"
+  )
+
+########## 5.6 Enkel-samband: Poäng mot centrala variabler ##########
+
+# xG vs Poang
+ggplot(pl_reg, aes(x = xG, y = Poang)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Samband mellan xG och poäng",
+    x = "Expected Goals (xG)",
+    y = "Poäng"
+  )
+
+# SoT vs Poang
+ggplot(pl_reg, aes(x = Sot, y = Poang)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Samband mellan skott på mål (SoT) och poäng",
+    x = "Shots on Target (SoT)",
+    y = "Poäng"
+  )
+
+# Cmp vs Poang
+ggplot(pl_reg, aes(x = Cmp, y = Poang)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Samband mellan passningsprecision (Cmp) och poäng",
+    x = "Passningsprecision (%)",
+    y = "Poäng"
+  )
+
+# Wages vs Poang (explorativ, även om den inte är med i slutmodellen)
+ggplot(pl_reg, aes(x = Wages, y = Poang)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Samband mellan lönekostnader (Wages) och poäng",
+    x = "Wages (miljoner £ per år)",
+    y = "Poäng"
+  )
+
+# PI vs Poang
+ggplot(pl_reg, aes(x = PI, y = Poang)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Samband mellan Antal Använda Spelare (PI) och poäng",
+    x = "Antal Använda Spelare (PI)",
+    y = "Poäng"
+  )
+
+
+########## 5.7 Residualer per år (kollar om något år avviker) ##########
+
+ggplot(pl_reg, aes(x = factor(Year), y = resid)) +
+  geom_boxplot() +
+  labs(
+    title = "Residualer fördelade per säsong",
+    x = "År",
+    y = "Residualer"
+  )
+
