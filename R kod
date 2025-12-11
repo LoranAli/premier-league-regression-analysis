@@ -1,19 +1,25 @@
+# install.packages("readxl")
+# install.packages("dplyr")
+# install.packages("tidyr")
+# install.packages("ggplot2")
+# install.packages("car")
+# install.packages("ggcorrplot")
+
 library(readxl)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(car)
 library(ggcorrplot)
-library(MASS)
 
+theme_set(theme_minimal())
 
-
+############################################################
 # 1. LÄS IN & FÖRBERED DATA
+############################################################
 
-
-# Läs in Premier League-data och wages
-pl    <- read_excel("Pldatta.xlsx")
-
+# Läs in Premier League-data
+pl <- read_excel("Pldatta.xlsx")
 
 # Lista över variabler som ska vara numeriska
 num_vars <- c(
@@ -21,7 +27,7 @@ num_vars <- c(
   "Cmp", "TklW", "Err", "TotDist", "Age", "PI", "Wages"
 )
 
-# Gör om till numeric 
+# Gör om till numeric (byter ev. kommatecken till punkt först)
 pl <- pl %>%
   mutate(
     across(
@@ -29,7 +35,6 @@ pl <- pl %>%
       ~ as.numeric(gsub(",", ".", as.character(.)))
     )
   )
-
 
 # Skapa regressionsdata: alla år, inga NA i nyckelvariabler
 pl_reg <- pl %>%
@@ -40,10 +45,9 @@ pl_reg <- pl %>%
 str(pl_reg)
 nrow(pl_reg)
 
-
-
+############################################################
 # 2. FULL MODELL (ALLA VARIABLER) + VIF
-
+############################################################
 
 model_full <- lm(
   Poang ~ Sot + xG + SCA + FinalThird + PrgP +
@@ -51,13 +55,13 @@ model_full <- lm(
   data = pl_reg
 )
 
-summary(model_full)      
+summary(model_full)
 vif_full <- vif(model_full)
-vif_full                   # underlag till VIF-tabell
+vif_full   # underlag till VIF-tabell i rapporten
 
-
-
+############################################################
 # 3. SLUTLIG REDUCERAD MODELL (VALD MODELL)
+############################################################
 
 # Slutmodell baserad på signifikans + VIF + teori
 model_final <- lm(
@@ -65,48 +69,42 @@ model_final <- lm(
   data = pl_reg
 )
 
-summary(model_final)      # detta är modellen vi använder i rapporten
+summary(model_final)      # modellen ni använder i rapporten
 vif(model_final)          # VIF för slutmodellen
 
+############################################################
+# 4. PREDICTIONER & RESIDUALER FRÅN SLUTMODELLEN (FIT PÅ ALLA ÅR)
+############################################################
 
-
-
-
-
-# 4. PREDICTIONER & RESIDUALER FRÅN SLUTMODELLEN
-
-
+# Här utvärderar vi modellens "fit" på samma data som den tränats på
 pl_reg <- pl_reg %>%
   mutate(
     pred  = predict(model_final),
     resid = residuals(model_final)
   )
 
-predict(model_final)
-residuals(model_final)
+# Tabell med index, lag, år, faktiska & predikterade poäng
+fit_table <- cbind(
+  index = 1:nrow(pl_reg),
+  pl_reg[, c("Squad", "Year", "Poang", "pred", "resid")]
+)
+fit_table
 
-View(pl_reg)
+############################################################
+# 5. VISUALISERINGAR (MODELLFELSANALYS)
+############################################################
 
-cbind(index = 1:nrow(pl_reg), pl_reg[, c("Squad", "Year", "Poang", "pred", "resid")])
-
-
-
-# 5. VISUALISERINGAR
-
-
-# 5.1 Predikterade vs faktiska poäng
-
+# 5.1 Predikterade vs faktiska poäng (alla år)
 ggplot(pl_reg, aes(x = pred, y = Poang)) +
   geom_point() +
   geom_abline(linetype = "dashed") +
   labs(
-    title = "Predikterade vs faktiska poäng",
+    title = "Predikterade vs faktiska poäng (alla säsonger)",
     x = "Predikterade poäng",
     y = "Faktiska poäng"
   )
 
 # 5.2 Residualplot (fitted vs residualer)
-
 ggplot(pl_reg, aes(x = pred, y = resid)) +
   geom_point() +
   geom_hline(yintercept = 0, linetype = "dashed") +
@@ -117,7 +115,6 @@ ggplot(pl_reg, aes(x = pred, y = resid)) +
   )
 
 # 5.3 QQ-plot för residualer
-
 ggplot(pl_reg, aes(sample = resid)) +
   stat_qq() +
   stat_qq_line() +
@@ -128,7 +125,6 @@ ggplot(pl_reg, aes(sample = resid)) +
   )
 
 # 5.4 Korrelationsmatris (heatmap)
-
 corr_matrix <- cor(pl_reg[, num_vars], use = "complete.obs")
 
 ggcorrplot(
@@ -143,7 +139,6 @@ ggcorrplot(
 )
 
 # 5.5 Variabelbetydelse (absoluta t-värden i slutmodellen)
-
 coefs <- summary(model_final)$coefficients[-1, , drop = FALSE]  # ta bort interceptet
 
 df_t <- data.frame(
@@ -159,7 +154,7 @@ ggplot(df_t, aes(x = t_value, y = reorder(Variabel, t_value))) +
     y = "Variabel"
   )
 
-########## 5.6 Enkel-samband: Poäng mot centrala variabler ##########
+# 5.6 Enkel-samband: Poäng mot centrala variabler
 
 # xG vs Poang
 ggplot(pl_reg, aes(x = xG, y = Poang)) +
@@ -191,7 +186,7 @@ ggplot(pl_reg, aes(x = Cmp, y = Poang)) +
     y = "Poäng"
   )
 
-# Wages vs Poang (explorativ, även om den inte är med i slutmodellen)
+# Wages vs Poang (explorativt)
 ggplot(pl_reg, aes(x = Wages, y = Poang)) +
   geom_point() +
   geom_smooth(method = "lm", se = TRUE) +
@@ -206,14 +201,12 @@ ggplot(pl_reg, aes(x = PI, y = Poang)) +
   geom_point() +
   geom_smooth(method = "lm", se = TRUE) +
   labs(
-    title = "Samband mellan Antal Använda Spelare (PI) och poäng",
-    x = "Antal Använda Spelare (PI)",
+    title = "Samband mellan antal använda spelare (PI) och poäng",
+    x = "Antal använda spelare (PI)",
     y = "Poäng"
   )
 
-
-########## 5.7 Residualer per år (kollar om något år avviker) ##########
-
+# 5.7 Residualer per år (kollar om något år avviker)
 ggplot(pl_reg, aes(x = factor(Year), y = resid)) +
   geom_boxplot() +
   labs(
@@ -222,3 +215,53 @@ ggplot(pl_reg, aes(x = factor(Year), y = resid)) +
     y = "Residualer"
   )
 
+############################################################
+# 6. PREDIKTION FÖR SÄSONG 2025 (TRAIN/TEST-SPLIT)
+############################################################
+
+# Dela upp i train (alla år ≠ 2025) och test (endast 2025)
+pl_train <- pl_reg %>% filter(Year != 2025)
+pl_test  <- pl_reg %>% filter(Year == 2025)
+
+nrow(pl_train)  # antal train-observationer
+nrow(pl_test)   # antal lag i 2025
+
+# Träna samma modellstruktur på TRAIN-data
+model_pred_2025 <- lm(
+  Poang ~ Sot + xG + Cmp + TklW + Err + TotDist + PI + Wages,
+  data = pl_train
+)
+
+summary(model_pred_2025)
+vif(model_pred_2025)
+
+# Prediktera poäng för säsong 2025
+pl_test <- pl_test %>%
+  mutate(
+    pred_2025  = predict(model_pred_2025, newdata = pl_test),
+    resid_2025 = Poang - pred_2025
+  )
+
+# RMSE och MAE för 2025
+rmse_2025 <- sqrt(mean(pl_test$resid_2025^2))
+mae_2025  <- mean(abs(pl_test$resid_2025))
+
+rmse_2025
+mae_2025
+
+# Tabell: faktiska vs predikterade poäng 2025
+pred_table_2025 <- pl_test %>%
+  dplyr::select(Squad, Year, Poang, pred_2025, resid_2025) %>%
+  arrange(desc(Poang))
+
+pred_table_2025
+
+# Extra visualisering: predikterade vs faktiska poäng för 2025
+ggplot(pl_test, aes(x = pred_2025, y = Poang)) +
+  geom_point() +
+  geom_abline(linetype = "dashed") +
+  labs(
+    title = "Predikterade vs faktiska poäng (endast säsong 2025)",
+    x = "Predikterade poäng (2025)",
+    y = "Faktiska poäng (2025)"
+  )
