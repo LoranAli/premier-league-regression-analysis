@@ -1,9 +1,3 @@
-# install.packages("readxl")
-# install.packages("dplyr")
-# install.packages("tidyr")
-# install.packages("ggplot2")
-# install.packages("car")
-# install.packages("ggcorrplot")
 
 library(readxl)
 library(dplyr)
@@ -88,7 +82,7 @@ fit_table <- cbind(
   index = 1:nrow(pl_reg),
   pl_reg[, c("Squad", "Year", "Poang", "pred", "resid")]
 )
-fit_table
+View(fit_table)
 
 ############################################################
 # 5. VISUALISERINGAR (MODELLFELSANALYS)
@@ -215,6 +209,15 @@ ggplot(pl_reg, aes(x = factor(Year), y = resid)) +
     y = "Residualer"
   )
 
+
+
+
+
+
+
+
+
+
 ############################################################
 # 6. PREDIKTION FÖR SÄSONG 2025 (TRAIN/TEST-SPLIT)
 ############################################################
@@ -254,7 +257,7 @@ pred_table_2025 <- pl_test %>%
   dplyr::select(Squad, Year, Poang, pred_2025, resid_2025) %>%
   arrange(desc(Poang))
 
-pred_table_2025
+View(pred_table_2025)
 
 # Extra visualisering: predikterade vs faktiska poäng för 2025
 ggplot(pl_test, aes(x = pred_2025, y = Poang)) +
@@ -265,3 +268,79 @@ ggplot(pl_test, aes(x = pred_2025, y = Poang)) +
     x = "Predikterade poäng (2025)",
     y = "Faktiska poäng (2025)"
   )
+
+
+
+
+
+############################################################
+# 6. PREDIKTION FÖR SÄSONG 2020 (TRAIN/TEST – EXTERN DATA)
+############################################################
+
+# Läs in test-data (2020)
+pl_2020 <- read.csv("pl_2020_prediction_with_poang.csv")
+
+# Säkerställ numeriska variabler
+pl_2020 <- pl_2020 %>%
+  mutate(
+    across(c(Poang, Sot, xG, Cmp, TklW, Err, PI, Wages), as.numeric)
+  )
+
+# TRAIN = alla år i pl_reg (2021–2025)
+pl_train <- pl_reg
+
+# TEST = säsong 2020 (extern)
+pl_test <- pl_2020
+
+nrow(pl_train)  # antal train-observationer
+nrow(pl_test)   # antal lag i 2020
+
+# Träna samma modellstruktur på TRAIN-data
+model_pred_2020 <- lm(
+  Poang ~ Sot + xG + Cmp + TklW + Err + PI + Wages,
+  data = pl_train
+)
+
+summary(model_pred_2020)
+vif(model_pred_2020)
+
+# Prediktera poäng för säsong 2020
+pl_test <- pl_test %>%
+  mutate(
+    pred_2020  = predict(model_pred_2020, newdata = pl_test),
+    resid_2020 = Poang - pred_2020
+  )
+
+# RMSE och MAE för 2020
+rmse_2020 <- sqrt(mean(pl_test$resid_2020^2))
+mae_2020  <- mean(abs(pl_test$resid_2020))
+
+rmse_2020
+mae_2020
+
+# Tabell: faktiska vs predikterade poäng 2020
+pred_table_2020 <- pl_test %>%
+  dplyr::select(Squad, Year, Poang, pred_2020, resid_2020) %>%
+  arrange(desc(Poang))
+
+View(pred_table_2020)
+
+# Extra visualisering: predikterade vs faktiska poäng för 2020
+ggplot(pl_test, aes(x = pred_2020, y = Poang)) +
+  geom_point() +
+  geom_abline(linetype = "dashed") +
+  labs(
+    title = "Predikterade vs faktiska poäng (endast säsong 2019–2020)",
+    x = "Predikterade poäng (2020)",
+    y = "Faktiska poäng (2020)"
+  )
+
+ggplot(pred_table_2020, aes(x = reorder(Squad, pred_2020), y = pred_2020)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Predikterade poäng (säsong 2020)",
+    x = "Lag",
+    y = "Predikterade poäng"
+  )
+
