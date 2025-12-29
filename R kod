@@ -1,3 +1,10 @@
+ install.packages("readxl")
+ install.packages("dplyr")
+ install.packages("tidyr")
+ install.packages("ggplot2")
+ install.packages("car")
+ install.packages("ggcorrplot")
+
 library(readxl)
 library(dplyr)
 library(tidyr)
@@ -5,6 +12,7 @@ library(ggplot2)
 library(car)
 library(ggcorrplot)
 
+theme_set(theme_minimal())
 
 ############################################################
 # 1. LÄS IN & FÖRBERED DATA
@@ -285,46 +293,61 @@ pl_2020 <- pl_2020 %>%
   )
 
 # TRAIN = alla år i pl_reg (2021–2025)
-pl_train <- pl_reg
+pl_train1 <- pl_reg
 
 # TEST = säsong 2020 (extern)
-pl_test <- pl_2020
+pl_test1 <- pl_2020
 
-nrow(pl_train)  # antal train-observationer
-nrow(pl_test)   # antal lag i 2020
+nrow(pl_train1)  # antal train-observationer
+nrow(pl_test1)   # antal lag i 2020
 
 # Träna samma modellstruktur på TRAIN-data
 model_pred_2020 <- lm(
   Poang ~ Sot + xG + Cmp + TklW + Err + PI + Wages,
-  data = pl_train
+  data = pl_train1
 )
 
 summary(model_pred_2020)
 vif(model_pred_2020)
 
 # Prediktera poäng för säsong 2020
-pl_test <- pl_test %>%
+pl_test1 <- pl_test1 %>%
   mutate(
-    pred_2020  = predict(model_pred_2020, newdata = pl_test),
+    pred_2020  = predict(model_pred_2020, newdata = pl_test1),
     resid_2020 = Poang - pred_2020
   )
 
 # RMSE och MAE för 2020
-rmse_2020 <- sqrt(mean(pl_test$resid_2020^2))
-mae_2020  <- mean(abs(pl_test$resid_2020))
+rmse_2020 <- sqrt(mean(pl_test1$resid_2020^2))
+mae_2020  <- mean(abs(pl_test1$resid_2020))
 
 rmse_2020
 mae_2020
 
+
+
+
+
 # Tabell: faktiska vs predikterade poäng 2020
-pred_table_2020 <- pl_test %>%
+pred_table_2020 <- pl_test1 %>%
   dplyr::select(Squad, Year, Poang, pred_2020, resid_2020) %>%
   arrange(desc(Poang))
 
 View(pred_table_2020)
 
+# Extra visualisering : predikterade poäng för 2020 
+ggplot(pred_table_2020, aes(x = reorder(Squad, pred_2020), y = pred_2020)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Predikterade poäng (säsong 2020)",
+    x = "Lag",
+    y = "Predikterade poäng"
+  )
+
+
 # Extra visualisering: predikterade vs faktiska poäng för 2020
-ggplot(pl_test, aes(x = pred_2020, y = Poang)) +
+ggplot(pl_test1, aes(x = pred_2020, y = Poang)) +
   geom_point() +
   geom_abline(linetype = "dashed") +
   labs(
@@ -333,12 +356,81 @@ ggplot(pl_test, aes(x = pred_2020, y = Poang)) +
     y = "Faktiska poäng (2020)"
   )
 
-ggplot(pred_table_2020, aes(x = reorder(Squad, pred_2020), y = pred_2020)) +
-  geom_col() +
-  coord_flip() +
+
+
+
+
+
+
+
+
+
+
+
+
+
+############################################################
+# 6. PREDIKTION FÖR SÄSONG 2020 (LOG(Wages)-TEST)
+# Train: pl_reg (2021–2025)
+# Test : pl_2020_prediction_with_poang.csv
+############################################################
+
+# (förutsätter att du redan har: library(dplyr), library(ggplot2), library(car))
+# och att pl_reg redan finns (din cleanade data 2021–2025)
+
+# 1) Läs in 2020-testdata
+pl_2020 <- read.csv("pl_2020_prediction_with_poang.csv")
+
+pl_2020 <- pl_2020 %>%
+  mutate(across(c(Poang, Sot, xG, Cmp, TklW, Err, PI, Wages), as.numeric)) %>%
+  mutate(log_Wages = log(Wages))
+
+# 2) Train = alla år i pl_reg (2021–2025) + logga wages
+pl_train <- pl_reg %>%
+  mutate(log_Wages = log(Wages))
+
+pl_test <- pl_2020
+
+nrow(pl_train)
+nrow(pl_test)
+
+# 3) Träna modell med log(Wages)
+model_pred_2020_log <- lm(
+  Poang ~ Sot + xG + Cmp + TklW + Err + PI + log_Wages,
+  data = pl_train
+)
+
+summary(model_pred_2020_log)
+vif(model_pred_2020_log)
+
+# 4) Prediktera + residualer
+pl_test <- pl_test %>%
+  mutate(
+    pred_2020_log  = predict(model_pred_2020_log, newdata = pl_test),
+    resid_2020_log = Poang - pred_2020_log
+  )
+
+# 5) RMSE & MAE
+rmse_2020_log <- sqrt(mean(pl_test$resid_2020_log^2))
+mae_2020_log  <- mean(abs(pl_test$resid_2020_log))
+
+rmse_2020_log
+mae_2020_log
+
+# 6) Tabell: faktiska vs predikterade (log wages)
+pred_table_2020_log <- pl_test %>%
+  dplyr::select(Squad, Year, Poang, pred_2020_log, resid_2020_log) %>%
+  arrange(desc(Poang))
+
+View(pred_table_2020_log)
+
+# 7) Plot: pred vs faktisk (log wages)
+ggplot(pl_test, aes(x = pred_2020_log, y = Poang)) +
+  geom_point() +
+  geom_abline(linetype = "dashed") +
   labs(
-    title = "Predikterade poäng (säsong 2020)",
-    x = "Lag",
-    y = "Predikterade poäng"
+    title = "Predikterade vs faktiska poäng (2019–2020) – log(Wages)",
+    x = "Predikterade poäng (log(Wages))",
+    y = "Faktiska poäng (2020)"
   )
 
