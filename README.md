@@ -1,62 +1,96 @@
-# Premier League Regression Analysis
+Premier League Performance Drivers
+A Multiple Regression Analysis of Team Success (2024/2025 Season)
+Objective
 
-This project investigates which performance factors best explain team success in the Premier League.  
-Using data from the 2024/2025 season, the study applies multiple linear regression to identify the offensive, defensive, technical, and physical metrics that most strongly predict total points won.
+What truly drives team success in the Premier League?
 
-The project showcases skills in data cleaning, exploratory data analysis, statistical modeling, variable selection, and interpretation of econometric results.
+This project analyzes which measurable performance indicators best explain total league points during the 2024/2025 season. Using multiple linear regression, the study evaluates the relative importance of offensive, defensive, technical, and physical metrics.
 
+The goal is not only statistical explanation — but identifying actionable performance drivers.
 
-## Project Overview
+Data
 
-The goal of this analysis is to determine **which measurable team characteristics are most strongly associated with Premier League performance**.  
-The project explores questions such as:
+Source: FBref.com
 
-- Do offensive metrics (e.g., shots on target, xG) explain points better than defensive ones?  
-- Are technical abilities (e.g., pass completion) more important than physical metrics (e.g., distance covered)?  
-- Which variables remain significant when controlling for others in a multiple regression model?
+Season: 2024/2025
 
+Observations: 20 Premier League teams
 
-## Data
+Key Variables
 
-- **Source:** FBref.com  
-- **Season:** Premier League 2024/2025  
-- **Observations:** 20 teams  
-- **Key variables analyzed:**
-  - Shots on target (SoT)
-  - Expected goals (xG)
-  - Pass completion rate (Cmp%)
-  - Tackles won (TklW)
-  - Defensive errors leading to shots/goals (Err)
-  - Total distance covered (TotDist)
-  - Other relevant performance metrics
+Shots on Target (SoT)
 
+Expected Goals (xG)
 
-## Methodology
+Pass Completion % (Cmp%)
 
-The project uses the following statistical techniques:
+Tackles Won (TklW)
 
-### Exploratory Data Analysis  
-- Correlation analysis  
-- Visual inspection of performance metrics  
-- Outlier detection  
+Defensive Errors (Err)
 
-### Multiple Linear Regression  
-- Modelling points won as the dependent variable  
-- Evaluating individual and joint variable significance  
-- Checking model assumptions  
+Total Distance Covered (TotDist)
 
-### Model Selection & Diagnostics  
-- AIC-based variable selection  
-- Variance Inflation Factor (VIF) for multicollinearity  
-- Residual analysis and model validation  
+Additional performance metrics
 
+Methodology
+1️⃣ Exploratory Data Analysis
 
-## Key Findings (High-Level Summary)
+Distribution analysis
 
-- Offensive and technical metrics generally have the strongest explanatory power for team success.  
-- Some defensive and physical metrics contribute but are less predictive when controlling for xG and shooting metrics.  
-- Models with selected variables outperform full-variable models in terms of explanatory power and statistical significance.
+Correlation matrix
 
-*A full interpretation and discussion are provided in the report.*
+Outlier detection
 
+Pairwise performance comparisons
 
+2️⃣ Multiple Linear Regression
+
+Dependent variable: Total Points
+
+Stepwise model specification
+
+Joint and individual hypothesis testing
+
+3️⃣ Model Diagnostics
+
+AIC-based model selection
+
+Variance Inflation Factor (VIF) for multicollinearity
+
+Residual diagnostics
+
+Assumption testing
+
+Results
+
+Offensive metrics (especially xG and Shots on Target) show the strongest and most consistent statistical significance.
+
+Defensive errors negatively impact points but lose significance when controlling for attacking strength.
+
+Physical metrics (e.g., total distance covered) have limited explanatory power.
+
+The selected model improves explanatory efficiency compared to the full model.
+
+(Add R², adjusted R² and p-values here — this is important.)
+
+Key Insight
+
+Premier League performance is primarily driven by attacking efficiency rather than physical intensity or raw defensive volume.
+
+Once attacking quality (xG, shot efficiency) is controlled for, many commonly cited performance indicators lose explanatory power.
+
+Business / Strategic Interpretation
+
+For football clubs and analysts:
+
+Investing in chance creation quality (xG generation) yields stronger performance impact than focusing solely on physical workload metrics.
+
+Technical efficiency plays a larger role than raw activity volume.
+
+Recruitment and tactical strategy should prioritize attacking output metrics.
+
+Repository Structure
+
+R code/ → Data preparation, regression modelling, diagnostics
+
+Premier league regression analysis.pdf → Full statistical report
